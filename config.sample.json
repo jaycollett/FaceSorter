@@ -1,0 +1,40 @@
+{
+  "directories": {
+    "input": "/path/to/your/unsorted/photos",
+    "cache": "/path/to/your/cache/directory"
+  },
+  "recognition": {
+    "model": "cnn",
+    "use_children_settings": true,
+    "min_face_size": 20,
+    "max_image_size": 1900,
+    "age_based_matching": true,
+    "age_tolerance": 5
+  },
+  "performance": {
+    "workers": 4,
+    "batch_size": 16
+  },
+  "behavior": {
+    "move_files": false,
+    "recursive_search": true
+  },
+  "people": {
+    "person1": {
+      "priority": 1,
+      "birthdate": "2010-01-01",
+      "output_path": "/path/to/person1/photos",
+      "faces_path": "/path/to/known_faces/person1"
+    },
+    "person2": {
+      "priority": 2,
+      "birthdate": "2000-01-01",
+      "output_path": "/path/to/person2/photos",
+      "faces_path": "/path/to/known_faces/person2"
+    }
+  },
+  "logging": {
+    "log_dir": "/path/to/logs",
+    "verbosity": "info"
+  }
+}

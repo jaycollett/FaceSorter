@@ -21,6 +21,9 @@ logs/
 known_faces/*
 !known_faces/.gitkeep
 
+# Configuration files - never commit real config
+config.json
+
 # Docker
 .dockerenv
 

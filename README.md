@@ -102,33 +102,55 @@ For each person you want to recognize, create a folder with their name in the `k
 
 FaceSorter can be configured using a JSON configuration file instead of command-line arguments. The default configuration file is `config.json` in the current directory.
 
+### Setting Up Your Configuration
+
+1. A sample configuration file `config.sample.json` is provided as a template
+2. Copy this file and rename it to `config.json`:
+   ```bash
+   cp config.sample.json config.json
+   ```
+3. Edit the `config.json` file with your specific settings
+
+> **Note:** The actual `config.json` file is excluded from version control via `.gitignore` to prevent committing personal settings. Always use the sample as a starting point.
+
+### Configuration Structure
+
+The configuration file uses the following structure:
+
 ```json
 {
   "directories": {
     "input": "/path/to/input/images",
-    "known_faces": "/path/to/known_faces",
-    "output": "/path/to/output/directory",
     "cache": "/path/to/cache/directory"
   },
   "recognition": {
     "model": "cnn",
     "use_children_settings": true,
     "min_face_size": 20,
-    "max_image_size": 1900
+    "max_image_size": 1900,
+    "age_based_matching": true,
+    "age_tolerance": 5
   },
   "performance": {
     "workers": 28,
     "batch_size": 16
   },
   "behavior": {
-    "priority": ["ana", "ethan", "gabe", "natalie"],
     "move_files": true,
-    "recursive": false,
-    "person_paths": {
-      "ana": "/path/to/ana/photos",
-      "ethan": "/path/to/ethan/photos",
-      "gabe": "/path/to/gabe/photos",
-      "natalie": "/path/to/natalie/photos"
+    "recursive_search": true
+  },
+  "people": {
+    "person1": {
+      "priority": 1,
+      "birthdate": "2010-01-01",
+      "output_path": "/path/to/person1/photos",
+      "faces_path": "/path/to/known_faces/person1"
+    },
+    "person2": {
+      "priority": 2,
+      "birthdate": "2000-01-01",
+      "output_path": "/path/to/person2/photos",
+      "faces_path": "/path/to/known_faces/person2"
     }
   },
   "logging": {
@@ -138,7 +160,17 @@ FaceSorter can be configured using a JSON configuration file instead of command-
 }
 ```
 
-To use a custom configuration file:
+### Age-Based Matching
+
+The configuration now supports age-based face matching to improve accuracy:
+
+- `age_based_matching`: Enable/disable age-based matching (default: true)
+- `age_tolerance`: Age tolerance in years (default: 5)
+- Each person requires a `birthdate` in YYYY-MM-DD format
+
+This feature helps improve accuracy by comparing the person's age at the time a photo was taken with their actual age based on birthdate.
+
+### Using a Custom Configuration File
 
 ```bash
 ./run_facesorter.sh --config /path/to/your/config.json
