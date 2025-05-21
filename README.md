@@ -15,7 +15,7 @@ FaceSorter is designed to automatically organize your photo collection by recogn
 
 ## Code Structure
 
-FaceSorter uses a modular package structure for better maintainability:
+FaceSorter uses a modular package structure for better maintainability, readability, and extensibility:
 
 ```
 FaceSorter/
@@ -75,19 +75,25 @@ For better performance with large image collections:
 
 ## Directory Setup
 
-Organize your photos as follows:
+The Docker container uses a consistent `/data` directory structure:
 
 ```
-/your/data/directory/
-├── unsorted/           # Put all unsorted photos here
+/data/
+├── input/              # Input images to process
 ├── known_faces/        # Reference photos organized by person
 │   ├── person1/        # One directory per person
 │   │   └── *.jpg       # Multiple photos of person1
 │   ├── person2/
 │   │   └── *.jpg       # Multiple photos of person2
 │   └── ...
-├── sorted/             # Output directory (created automatically)
-└── .face_cache/        # Cache directory (created automatically)
+├── output/             # Default output directory
+├── cache/              # Cache for face encodings
+├── logs/               # Log files
+├── sorted/             # Base directory for person-specific paths
+│   ├── person1/        # Person-specific output directory
+│   ├── person2/        # Person-specific output directory
+│   └── ...
+└── sorted/[PERSONNAME] # Person-specific output directories
 ```
 
 For each person you want to recognize, create a folder with their name in the `known_faces` directory and add several clear photos of their face.
@@ -145,7 +151,7 @@ To use a custom configuration file:
 
 ## Logging
 
-FaceSorter writes log files to the directory specified in your configuration. The `run_facesorter.sh` script automatically mounts your configured `log_dir` to `/app/logs` in the container.
+FaceSorter writes log files to the directory specified in your configuration. The `run_facesorter.sh` script automatically mounts your configured `log_dir` to `/data/logs` in the container.
 
 **Example:**
 - If your `config.json` contains:
@@ -157,7 +163,7 @@ FaceSorter writes log files to the directory specified in your configuration. Th
   ```
 - Then all log files will appear in `/home/jay/SourceCode/FaceSorter/logs` on your host system.
 
-**Note:** If you change `log_dir` in your config, make sure the directory exists and is writable by Docker, or the script will attempt to create it for you.
+**Note:** If you change `log_dir` in your config, make sure the directory exists and is writable by Docker, or the script will attempt to create it for you. The application now uses a single log file approach to avoid duplicate logging issues.
 
 ## Key Features
 
@@ -200,10 +206,12 @@ Command-line options (these will override config file settings):
 
 ### Directories
 
-- `input`: Directory containing images to sort (default: "unsorted")
-- `known_faces`: Directory containing known face examples (default: "known_faces")
-- `output`: Output directory for sorted images (default: "sorted")
-- `cache`: Cache directory (default: ".face_cache")
+- `input`: Directory containing images to sort (default: mapped to `/data/input` in container)
+- `known_faces`: Directory containing known face examples (default: mapped to `/data/known_faces` in container)
+- `output`: Output directory for sorted images (default: mapped to `/data/output` in container)
+- `cache`: Cache directory for face encodings (default: mapped to `/data/cache` in container)
+- `logs`: Directory for log files (default: mapped to `/data/logs` in container)
+- `sorted`: Base directory for person-specific paths (default: mapped to `/data/sorted` in container)
 
 ### Recognition
 
@@ -309,10 +317,11 @@ Check if your system supports GPU acceleration:
 
 ## Files Included
 
-- `main.py`: Main entry point for the application
-- `run_facesorter.sh`: Helper script to run the container
+- `main.py`: Entry point for the application
+- `facesorter/`: Main package directory with modular code organization
+- `run_facesorter.sh`: Helper script to run the container (handles paths with spaces in Docker volume mappings)
 - `install.sh`: Installation script for dependencies
-- `config.json`: Default configuration file (may need to be created)
+- `config.json`: Default configuration file
 - `Dockerfile`: Defines the container with CUDA support
 - `entrypoint.sh`: Docker container entrypoint script
 - `requirements.txt`: Python dependencies
@@ -341,4 +350,4 @@ If you encounter issues:
 
 ## Version Information
 
-FaceSorter has been reorganized into a modular package structure for better maintainability, readability, and extensibility. The current version includes improvements to the logging system, statistics tracking, and Docker configuration.
+FaceSorter has been reorganized into a modular package structure for better maintainability, readability, and extensibility. The current version includes improvements to the logging system (single log file approach), statistics tracking, and Docker configuration with a consistent `/data` directory structure for all paths.
