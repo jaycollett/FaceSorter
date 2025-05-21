@@ -1,0 +1,38 @@
+# Python bytecode
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Distribution / packaging
+dist/
+build/
+*.egg-info/
+
+# Logs
+logs/
+*.log
+*.csv
+
+# Cache files
+.face_cache/
+*.npz
+
+# Known faces - never commit these images
+known_faces/*
+!known_faces/.gitkeep
+
+# Docker
+.dockerenv
+
+# Environment variables
+.env
+
+# OS specific files
+.DS_Store
+Thumbs.db
+
+# IDE specific files
+.idea/
+.vscode/
+*.swp
+*.swo

@@ -1,0 +1,32 @@
+{
+  "directories": {
+    "input": "/mnt/photos/Nat Mobile Uploads/iCloud Photos from Barbara Parish",
+    "known_faces": "/home/jay/SourceCode/FaceSorter/known_faces",
+    "output": "/mnt/photos/Nat Mobile Uploads/iCloud Photos from Barbara Parish/sorted",
+    "cache": "/mnt/photos/Nat Mobile Uploads/iCloud Photos from Barbara Parish/facesorter_cache"
+  },
+  "recognition": {
+    "model": "cnn",
+    "use_children_settings": true,
+    "min_face_size": 20,
+    "max_image_size": 1900
+  },
+  "performance": {
+    "workers": 28,
+    "batch_size": 16
+  },
+  "behavior": {
+    "priority": ["ana", "ethan", "gabe", "natalie"],
+    "move_files": true,
+    "person_paths": {
+      "ana": "/mnt/photos/Random Ana Pictures",
+      "ethan": "/mnt/photos/Random Ethan Pictures",
+      "gabe": "/mnt/photos/Random Gabriel Pictures",
+      "natalie": "/mnt/photos/Random Natalie Pictures"
+    }
+  },
+  "logging": {
+    "log_dir": "/home/jay/SourceCode/FaceSorter/logs",
+    "verbosity": "info"
+  }
+}

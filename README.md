@@ -1,0 +1,344 @@
+# FaceSorter
+
+A high-performance facial recognition tool that sorts family photos into person-specific folders with optimized support for children's faces.
+
+## Overview
+
+FaceSorter is designed to automatically organize your photo collection by recognizing faces and sorting images into person-specific folders. It features:
+
+- **Advanced Face Recognition**: Uses the face_recognition library with optimizations for accuracy
+- **Child Face Optimization**: Special settings for better recognition of children's faces
+- **Priority Handling**: Specify which person gets priority when multiple faces are detected
+- **High Performance**: Multi-threading and GPU acceleration for processing large collections
+- **Smart Caching**: Avoids reprocessing previously analyzed images
+- **Docker Integration**: GPU acceleration without affecting your system's CUDA setup
+
+## Code Structure
+
+FaceSorter uses a modular package structure for better maintainability:
+
+```
+FaceSorter/
+├── facesorter/                 # Main package directory
+│   ├── __init__.py             # Package initialization
+│   ├── config.py               # Configuration handling
+│   ├── cli.py                  # Command-line interface
+│   ├── face_recognition/       # Face recognition module
+│   │   ├── __init__.py
+│   │   ├── detection.py        # Face detection functionality
+│   │   ├── encoding.py         # Face encoding functionality
+│   │   └── matching.py         # Face matching functionality
+│   ├── image/                  # Image processing module
+│   │   ├── __init__.py
+│   │   ├── processing.py       # Image processing utilities
+│   │   └── sorting.py          # Image sorting functionality
+│   └── utils/                  # Utility functions
+│       ├── __init__.py
+│       ├── file_ops.py         # File operations
+│       ├── logging.py          # Logging setup
+│       └── caching.py          # Caching functionality
+├── main.py                     # Entry point
+├── Dockerfile                  # Docker container definition
+├── entrypoint.sh               # Docker container entrypoint
+├── run_facesorter.sh           # Helper script to run the application
+├── install.sh                  # Installation script
+└── requirements.txt            # Python dependencies
+```
+
+## Installation
+
+Run the installation script to set up dependencies and prepare the system:
+
+```bash
+./install.sh
+```
+
+This script will:
+- Check if Docker is installed (and help install it if needed)
+- Check for NVIDIA drivers for GPU acceleration
+- Set up NVIDIA Docker runtime if available
+- Build the Docker image
+
+## Quick Start with Docker (Recommended)
+
+The easiest way to use FaceSorter is with Docker, which provides GPU acceleration without affecting your system:
+
+```bash
+./run_facesorter.sh
+```
+
+For better performance with large image collections:
+
+```bash
+./run_facesorter.sh --batch-size 128 --workers 24
+```
+
+## Directory Setup
+
+Organize your photos as follows:
+
+```
+/your/data/directory/
+├── unsorted/           # Put all unsorted photos here
+├── known_faces/        # Reference photos organized by person
+│   ├── person1/        # One directory per person
+│   │   └── *.jpg       # Multiple photos of person1
+│   ├── person2/
+│   │   └── *.jpg       # Multiple photos of person2
+│   └── ...
+├── sorted/             # Output directory (created automatically)
+└── .face_cache/        # Cache directory (created automatically)
+```
+
+For each person you want to recognize, create a folder with their name in the `known_faces` directory and add several clear photos of their face.
+
+## Configuration File
+
+FaceSorter can be configured using a JSON configuration file instead of command-line arguments. The default configuration file is `config.json` in the current directory.
+
+```json
+{
+  "directories": {
+    "input": "unsorted",
+    "known_faces": "known_faces",
+    "output": "sorted",
+    "cache": ".face_cache"
+  },
+  "recognition": {
+    "model": "hog",
+    "use_children_settings": true,
+    "min_face_size": 20,
+    "max_image_size": 1500
+  },
+  "performance": {
+    "workers": null,
+    "batch_size": null
+  },
+  "behavior": {
+    "priority": ["ana", "ethan", "gabe", "natalie"],
+    "move_files": false,
+    "recursive": false,
+    "person_paths": {
+      "ana": "/custom/path/for/ana",
+      "ethan": "/different/path/for/ethan"
+    }
+  },
+  "logging": {
+    "log_dir": "logs",
+    "verbosity": "info"
+  }
+}
+```
+
+To use a custom configuration file:
+
+```bash
+./run_facesorter.sh --config /path/to/your/config.json
+```
+
+## ⚠️ Important: Do NOT Run main.py Directly
+
+**FaceSorter must be run inside the Docker container via the `run_facesorter.sh` script.**
+
+- Running `main.py` directly on your host machine will cause errors and may create unwanted log files in your root or project directory.
+- Always use the provided shell script to start the application. This ensures all paths and volumes are correctly set up.
+
+## Logging
+
+FaceSorter writes log files to the directory specified in your configuration. The `run_facesorter.sh` script automatically mounts your configured `log_dir` to `/app/logs` in the container.
+
+**Example:**
+- If your `config.json` contains:
+  ```json
+  "logging": {
+    "log_dir": "/home/jay/SourceCode/FaceSorter/logs",
+    "verbosity": "info"
+  }
+  ```
+- Then all log files will appear in `/home/jay/SourceCode/FaceSorter/logs` on your host system.
+
+**Note:** If you change `log_dir` in your config, make sure the directory exists and is writable by Docker, or the script will attempt to create it for you.
+
+## Key Features
+
+- **High Performance**: Optimized for speed with multi-threading and GPU acceleration
+- **Child-Optimized**: Special settings for better recognition of children's faces
+- **Priority Handling**: Specify which person gets priority when multiple faces are found
+- **Smart Caching**: Avoids reprocessing previously analyzed images
+- **Container Isolation**: GPU acceleration without affecting your system's CUDA setup
+- **Configuration File**: All settings can be defined in a JSON configuration file
+- **File Safety**: Checksum verification ensures file integrity when moving files
+- **Recursive Processing**: Option to process subdirectories recursively
+
+## Command Options
+
+```bash
+./run_facesorter.sh [options]
+```
+
+Options:
+- `--config PATH`: Path to JSON configuration file (default: ./config.json)
+- `--rebuild`: Force rebuild of Docker image
+
+Command-line options (these will override config file settings):
+- `--input DIR`: Directory containing images to sort
+- `--known-faces DIR`: Directory containing known face examples
+- `--output DIR`: Base output directory for sorted images
+- `--cache-dir DIR`: Directory to store face encoding cache
+- `--model TYPE`: Face detection model to use ('hog' or 'cnn')
+- `--move`: Move files instead of copying them
+- `--workers N`: Number of worker threads for parallel processing
+- `--batch-size N`: Number of images to process in a batch
+- `--min-face-size N`: Minimum face size to consider in pixels
+- `--max-image-size N`: Maximum image dimension for processing
+- `--children`: Use settings optimized for children
+- `--log-level LEVEL`: Logging level (debug, info, warning, error, critical)
+- `--priority P1 P2...`: Priority list of person names
+- `--recursive`: Recursively process subdirectories
+
+## Configuration Options
+
+### Directories
+
+- `input`: Directory containing images to sort (default: "unsorted")
+- `known_faces`: Directory containing known face examples (default: "known_faces")
+- `output`: Output directory for sorted images (default: "sorted")
+- `cache`: Cache directory (default: ".face_cache")
+
+### Recognition
+
+- `model`: Face detection model to use - "hog" (faster) or "cnn" (more accurate, GPU optimized) (default: "hog")
+- `use_children_settings`: Whether to use settings optimized for children's faces (default: true)
+- `min_face_size`: Minimum face size to consider in pixels (default: 20)
+- `max_image_size`: Maximum image dimension for processing (default: 2000)
+
+### Performance
+
+- `workers`: Number of worker threads (default: null, which uses CPU count)
+- `batch_size`: Number of images to process in a batch (default: null, which uses 16 for CNN model)
+
+### Behavior
+
+- `priority`: List of person names in priority order (default: ["ana", "ethan", "gabe", "natalie"])
+- `move_files`: Whether to move files instead of copying them (default: false). Note: When true, caching is automatically disabled for safety.
+- `recursive`: Whether to process subdirectories recursively (default: false)
+- `person_paths`: Dictionary mapping person names to custom output directories (default: {})
+
+### Logging
+
+- `log_dir`: Directory for log files (default: "logs")
+- `verbosity`: Logging level (default: "info", options: "debug", "info", "warning", "error", "critical")
+
+## Advanced Usage
+
+### Customizing Priority List
+
+Use the priority list to set which people get precedence when multiple faces are detected in a photo:
+
+```json
+{
+  "behavior": {
+    "priority": ["natalie", "ana", "gabe", "ethan"]
+  }
+}
+```
+
+In this example, Natalie will get highest priority, followed by Ana, Gabe, and Ethan.
+
+### Person-Specific Output Paths
+
+You can configure custom output directories for each person:
+
+```json
+{
+  "behavior": {
+    "person_paths": {
+      "ana": "/mnt/photos/family/Ana",
+      "ethan": "/mnt/external/Ethan",
+      "gabe": "/mnt/photos/family/Gabriel",
+      "natalie": "/mnt/network/Natalie/photos"
+    }
+  }
+}
+```
+
+This allows you to:
+- Store photos in person-specific locations independent of the base output directory
+- Organize photos across different storage devices or network locations
+- Maintain separate photo collections per person
+
+### Recursive Processing
+
+To process subdirectories within your input directory:
+
+```json
+{
+  "behavior": {
+    "recursive": true
+  }
+}
+```
+
+Or use the command-line flag:
+
+```bash
+./run_facesorter.sh --recursive
+```
+
+### Testing GPU Support
+
+Check if your system supports GPU acceleration:
+
+```bash
+./run_facesorter.sh --rebuild --test
+```
+
+### Performance Tips
+
+1. For systems with lots of RAM, use larger batch sizes (64-128)
+2. Adjust worker count based on your CPU cores (usually CPU cores minus 2)
+3. The Docker container automatically uses GPU acceleration when available
+4. Use the CNN model for better accuracy when GPU acceleration is available
+5. Caching is automatically enabled when copying files and disabled when moving files for safety
+
+#### About Caching
+
+- When copying files (default), FaceSorter uses caching to avoid reprocessing images
+- When moving files (`move_files: true`), caching is automatically disabled for safety
+- The cache directory stores face encodings to speed up processing
+
+## Files Included
+
+- `main.py`: Main entry point for the application
+- `run_facesorter.sh`: Helper script to run the container
+- `install.sh`: Installation script for dependencies
+- `config.json`: Default configuration file (may need to be created)
+- `Dockerfile`: Defines the container with CUDA support
+- `entrypoint.sh`: Docker container entrypoint script
+- `requirements.txt`: Python dependencies
+- `DOCKER_README.md`: Detailed Docker information
+- `PROJECT_DOCUMENTATION.md`: Technical documentation for developers
+
+## File Safety Features
+
+FaceSorter includes robust safety mechanisms to ensure your files are never lost:
+
+1. **Checksum Verification**: When moving files, checksums verify file integrity before deleting originals
+2. **Safe Path Handling**: Consistent path mapping between host and container prevents misplaced files
+3. **Permission Verification**: Directory write permissions are tested before any file operations
+4. **Detailed Logging**: Comprehensive logs track every file operation
+
+## Troubleshooting
+
+If you encounter issues:
+
+1. Make sure the NVIDIA drivers are installed: `nvidia-smi`
+2. Ensure Docker is installed and has NVIDIA runtime support
+3. Try rebuilding the container: `./run_facesorter.sh --rebuild`
+4. Check the CUDA version in the container matches your drivers
+5. Verify your configuration file is valid JSON
+6. Check the log files for detailed error messages
+
+## Version Information
+
+FaceSorter has been reorganized into a modular package structure for better maintainability, readability, and extensibility. The current version includes improvements to the logging system, statistics tracking, and Docker configuration.
