@@ -49,17 +49,17 @@ def ensure_container_directories(config):
     # Create standard directories
     os.makedirs(f"{CONTAINER_DATA_DIR}/input", exist_ok=True)
     os.makedirs(f"{CONTAINER_DATA_DIR}/known_faces", exist_ok=True)
-    os.makedirs(f"{CONTAINER_DATA_DIR}/output", exist_ok=True)
     os.makedirs(f"{CONTAINER_DATA_DIR}/cache", exist_ok=True)
     os.makedirs(f"{CONTAINER_DATA_DIR}/logs", exist_ok=True)
     os.makedirs(f"{CONTAINER_DATA_DIR}/sorted", exist_ok=True)
     
-    # Create person-specific directories under /data/sorted only for people without custom paths
-    for person in config["behavior"]["priority"]:
-        # Only create a directory if the person doesn't have a custom path
-        if person not in config["behavior"]["person_paths"]:
-            person_dir = os.path.join(f"{CONTAINER_DATA_DIR}/sorted", person)
-            os.makedirs(person_dir, exist_ok=True)
+    # Create person-specific directories under /data/sorted for each person in the people section
+    if "people" in config:
+        for person, person_data in config["people"].items():
+            # Create directory if person has an output_path
+            if "output_path" in person_data:
+                person_dir = os.path.join(f"{CONTAINER_DATA_DIR}/sorted", person)
+                os.makedirs(person_dir, exist_ok=True)
 
 def load_config(config_path=DEFAULT_CONFIG_PATH):
     """
@@ -76,7 +76,6 @@ def load_config(config_path=DEFAULT_CONFIG_PATH):
         "directories": {
             "input": "unsorted",
             "known_faces": "known_faces",
-            "output": "sorted",
             "cache": ".face_cache"
         },
         "recognition": {
@@ -133,15 +132,18 @@ def load_config(config_path=DEFAULT_CONFIG_PATH):
         # Override with container paths
         config["directories"]["input"] = f"{CONTAINER_DATA_DIR}/input"
         config["directories"]["known_faces"] = f"{CONTAINER_DATA_DIR}/known_faces"
-        config["directories"]["output"] = f"{CONTAINER_DATA_DIR}/output"
         config["directories"]["cache"] = f"{CONTAINER_DATA_DIR}/cache"
         config["logging"]["log_dir"] = f"{CONTAINER_DATA_DIR}/logs"
         
         # Create all necessary directories
         ensure_container_directories(config)
         
-        # Map person-specific paths to /data/sorted/person_name
-        for person in config["behavior"]["person_paths"]:
-            config["behavior"]["person_paths"][person] = f"{CONTAINER_DATA_DIR}/sorted/{person}"
+        # Map person-specific output paths in the people section to standard Docker container paths
+        # The run_facesorter.sh script handles mapping these standard container paths to the actual host paths
+        if "people" in config:
+            for person, person_data in config["people"].items():
+                if "output_path" in person_data:
+                    # Inside the container, we always use /data/sorted/[personname]
+                    config["people"][person]["output_path"] = f"{CONTAINER_DATA_DIR}/sorted/{person}"
     
     return config

@@ -2,6 +2,9 @@
 
 import numpy as np
 import face_recognition
+import datetime
+
+from ..utils.date_utils import calculate_age, is_within_age_tolerance, extract_date_from_image
 
 def compare_face_encodings_vectorized(known_encodings, unknown_encoding, tolerance=0.6):
     """
@@ -32,7 +35,8 @@ def compare_face_encodings_vectorized(known_encodings, unknown_encoding, toleran
     
     return matches, face_distances
 
-def find_best_match(face_encoding, known_face_encodings, known_face_names, tolerance=0.6, priority_list=None):
+def find_best_match(face_encoding, known_face_encodings, known_face_names, tolerance=0.6, priority_list=None,
+                age_based_matching=False, image_path=None, birthdates=None, age_tolerance=5):
     """
     Find the best matching person for a face encoding
     
@@ -42,11 +46,20 @@ def find_best_match(face_encoding, known_face_encodings, known_face_names, toler
         known_face_names: List of known person names
         tolerance: Maximum face distance to consider a match (lower is stricter)
         priority_list: Optional list of person names in priority order
+        age_based_matching: Whether to use age-based matching with birthdates
+        image_path: Path to the image being analyzed (for extracting date)
+        birthdates: Dictionary mapping person names to birthdates (format: 'YYYY-MM-DD')
+        age_tolerance: Age tolerance in years for age-based matching
         
     Returns:
         Tuple of (best_match, confidence) or (None, 0) if no match found
     """
     found_persons = []
+    
+    # Extract photo date if using age-based matching
+    photo_date = None
+    if age_based_matching and image_path and birthdates:
+        photo_date = extract_date_from_image(image_path)
     
     # Check each known person
     for person_name in known_face_names:
@@ -61,6 +74,38 @@ def find_best_match(face_encoding, known_face_encodings, known_face_names, toler
         # If any match found, record the best one
         if any(matches):
             confidence = 1.0 - face_distances.min()
+            
+            # Apply age-based matching if enabled
+            if age_based_matching and photo_date and birthdates and person_name in birthdates:
+                birthdate = birthdates.get(person_name)
+                if birthdate:
+                    # Calculate person's age at the time the photo was taken
+                    person_age = calculate_age(birthdate, photo_date)
+                    
+                    # Adjust confidence based on age match
+                    if person_age is not None:
+                        # If the person's age at photo time is very young (< 10), be more lenient
+                        # as facial features change more rapidly in children
+                        effective_tolerance = age_tolerance
+                        if person_age < 10:
+                            effective_tolerance += 2
+                        
+                        # Check if the estimated age from the photo is within tolerance
+                        # If not within tolerance, reduce confidence significantly
+                        # This helps filter out false positives where the face matches but age doesn't
+                        
+                        # For simplicity, we're using a binary approach here
+                        # A more sophisticated approach could use a sliding scale
+                        
+                        # Get all possible ages within tolerance range
+                        valid_ages = range(max(0, person_age - effective_tolerance), 
+                                           person_age + effective_tolerance + 1)
+                        
+                        # If the person's age is within tolerance, keep high confidence
+                        # Otherwise, reduce confidence significantly
+                        if person_age not in valid_ages:
+                            confidence *= 0.5  # Reduce confidence by 50%
+            
             found_persons.append((person_name, confidence))
     
     if not found_persons:

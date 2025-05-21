@@ -11,12 +11,13 @@ from ..utils.file_ops import is_image_file, get_image_hash
 from ..utils.logging import log
 from ..image.processing import resize_image_for_processing, progressive_resize_and_detect
 
-def load_known_faces(known_faces_dir, use_children_settings=True, model="hog", max_image_size=2000, cache_dir=None):
+def load_known_faces(people_config, use_children_settings=True, model="hog", max_image_size=2000, cache_dir=None):
     """
-    Load known face encodings from a directory structure
+    Load known face encodings from person-specific paths in people_config
     
     Args:
-        known_faces_dir: Directory containing subdirectories of person images
+        people_config: Dictionary mapping person names to their configuration,
+                      including 'faces_path' for each person
         use_children_settings: Whether to use settings optimized for children
         model: Face detection model to use ('hog' or 'cnn')
         max_image_size: Maximum image dimension for processing
@@ -52,14 +53,19 @@ def load_known_faces(known_faces_dir, use_children_settings=True, model="hog", m
     start_time = time.time()
     new_cache_entries = 0
     
-    # List all subdirectories in the known_faces_dir
-    for person_dir in os.listdir(known_faces_dir):
-        person_path = os.path.join(known_faces_dir, person_dir)
-        
-        if not os.path.isdir(person_path):
+    # Process each person in the people_config
+    for person_name, person_data in people_config.items():
+        # Skip if no faces_path is defined
+        if 'faces_path' not in person_data or not person_data['faces_path']:
+            log.warning(f"No faces_path defined for {person_name}, skipping")
             continue
             
-        person_name = person_dir
+        person_path = person_data['faces_path']
+        
+        # Skip if the directory doesn't exist
+        if not os.path.exists(person_path) or not os.path.isdir(person_path):
+            log.warning(f"Faces path not found for {person_name}: {person_path}")
+            continue
         person_encodings = []
         person_image_count = 0
         

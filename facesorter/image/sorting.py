@@ -20,7 +20,8 @@ from ..face_recognition.matching import compare_face_encodings_vectorized
 
 def process_image_batch(batch_data, known_face_encodings, known_face_names, priority_list, 
                        output_dir, use_children_settings=True, model="hog", min_face_size=20,
-                       max_image_size=2000, cache_dir=None, move_files=False, person_paths=None, file_ops_writer=None):
+                       max_image_size=2000, cache_dir=None, move_files=False, person_paths=None, file_ops_writer=None,
+                       age_based_matching=False, age_tolerance=5, birthdates=None):
     """
     Process a batch of images and copy/move to appropriate person folders if faces are recognized
     
@@ -37,6 +38,10 @@ def process_image_batch(batch_data, known_face_encodings, known_face_names, prio
         cache_dir: Directory to store face encoding cache (None to disable)
         move_files: Whether to move files instead of copying them (default: False)
         person_paths: Dictionary mapping person names to custom output paths
+        file_ops_writer: CSV writer for logging file operations
+        age_based_matching: Whether to use age-based matching with birthdates
+        age_tolerance: Age tolerance in years for age-based matching
+        birthdates: Dictionary mapping person names to birthdates (format: 'YYYY-MM-DD')
         
     Returns:
         List of (result, person_name) tuples for each image
@@ -164,25 +169,24 @@ def process_image_batch(batch_data, known_face_encodings, known_face_names, prio
             found_persons = []
             
             for face_encoding in face_encodings:
-                # Check each known person
-                best_match = None
-                highest_confidence = -1
+                # Use our enhanced matching function that supports age-based matching
+                from ..face_recognition.matching import find_best_match
                 
-                for person_name in known_face_names:
-                    # Compare with all examples of this person
-                    person_encodings = known_face_encodings[person_name]
-                    
-                    # Find the best match using vectorized comparison
-                    matches, face_distances = compare_face_encodings_vectorized(
-                        person_encodings, face_encoding, tolerance=tolerance
-                    )
-                    
-                    if any(matches) and face_distances.min() < (1.0 - highest_confidence):
-                        best_match = person_name
-                        highest_confidence = 1.0 - face_distances.min()
+                match_result = find_best_match(
+                    face_encoding, 
+                    known_face_encodings, 
+                    known_face_names, 
+                    tolerance=tolerance,
+                    priority_list=priority_list,
+                    age_based_matching=age_based_matching,
+                    image_path=img_path,
+                    birthdates=birthdates,
+                    age_tolerance=age_tolerance
+                )
                 
-                if best_match:
-                    found_persons.append((best_match, highest_confidence))
+                if match_result and match_result[0] is not None:
+                    best_match, confidence = match_result
+                    found_persons.append((best_match, confidence))
                     
             if not found_persons:
                 results.append((False, None))
@@ -203,6 +207,7 @@ def process_image_batch(batch_data, known_face_encodings, known_face_names, prio
                 priority_matches = [p for p in found_persons if p[0] in priority_list]
                 
                 if not priority_matches:
+                    # For unmatched faces, just leave them alone (skip processing)
                     results.append((False, None))
                     
                     # Cache negative result (not in priority list)
@@ -229,9 +234,11 @@ def process_image_batch(batch_data, known_face_encodings, known_face_names, prio
                 # Custom paths should already exist, but ensure they do
                 os.makedirs(person_dir, exist_ok=True)
             else:
-                # Only create a sub-folder in the output directory if no custom path is configured
-                person_dir = os.path.join(output_dir, best_person)
-                os.makedirs(person_dir, exist_ok=True)
+                # Skip processing if no custom path is configured for this person
+                # This should not happen with the new configuration structure
+                log.warning(f"No output path configured for person {best_person}, skipping image {os.path.basename(img_path)}")
+                results.append((False, None))
+                continue
             
             # Copy or move the image to the person's folder
             destination = os.path.join(person_dir, os.path.basename(img_path))
@@ -470,16 +477,17 @@ def log_file_operation(csv_writer, operation, source_path, destination_path, per
     ])
 
 
-def sort_images(source_dir, output_dir, known_faces_dir, priority_list=None, use_children_settings=True,
+def sort_images(source_dir, output_dir, people_config, priority_list=None, use_children_settings=True,
               model="hog", min_face_size=20, max_image_size=2000, move_files=False,
-              max_workers=CPU_COUNT, batch_size=BATCH_SIZE, cache_dir=None, person_paths=None, recursive=False):
+              max_workers=CPU_COUNT, batch_size=BATCH_SIZE, cache_dir=None, person_paths=None, recursive=False,
+              age_based_matching=False, age_tolerance=5, birthdates=None):
     """
     Sort images from source directory to output directory based on face recognition
     
     Args:
         source_dir: Directory containing images to sort
         output_dir: Base directory for sorted images
-        known_faces_dir: Directory containing known faces
+        people_config: Dictionary mapping person names to their configuration, including faces_path
         priority_list: List of person names in priority order
         use_children_settings: Whether to use settings optimized for children
         model: Face detection model to use ('hog' or 'cnn')
@@ -490,6 +498,9 @@ def sort_images(source_dir, output_dir, known_faces_dir, priority_list=None, use
         person_paths: Dictionary mapping person names to custom output paths
         batch_size: Number of images to process in a batch (default: BATCH_SIZE)
         max_workers: Maximum number of worker threads (default: CPU_COUNT)
+        age_based_matching: Whether to use age-based matching with birthdates
+        age_tolerance: Age tolerance in years for age-based matching
+        birthdates: Dictionary mapping person names to birthdates (format: 'YYYY-MM-DD')
         
     Returns:
         Dictionary with statistics about the sorting process
@@ -509,13 +520,13 @@ def sort_images(source_dir, output_dir, known_faces_dir, priority_list=None, use
     file_ops_log_path, file_ops_writer, file_ops_file = create_file_operations_log(log_dir)
     
     # Load known faces
-    log.info("Loading known faces...")
+    log.info("Loading known faces from people configuration...")
     known_face_encodings, known_face_names = load_known_faces(
-        known_faces_dir, use_children_settings, model, max_image_size, cache_dir
+        people_config, use_children_settings, model, max_image_size, cache_dir
     )
     
     if not known_face_names:
-        log.error(f"No known faces found in {known_faces_dir}")
+        log.error("No known faces found in people configuration")
         return {
             "total_images": 0,
             "recognized": 0,

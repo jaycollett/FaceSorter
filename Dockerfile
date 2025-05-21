@@ -75,7 +75,7 @@ COPY main.py /app/
 RUN chmod +x /app/main.py
 
 # Create data directory structure
-RUN mkdir -p /data/input /data/known_faces /data/output /data/cache /data/logs /data/sorted
+RUN mkdir -p /data/input /data/known_faces /data/cache /data/logs /data/sorted
 
 # Copy the entrypoint script
 COPY entrypoint.sh /app/

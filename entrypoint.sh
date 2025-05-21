@@ -28,7 +28,7 @@ WORKERS=4
 PRIORITY="ana ethan gabe natalie"
 
 # Parse arguments and build command
-CMD_ARGS="--model cnn --input /data/input --known-faces /data/known_faces --output /data/output --cache-dir /data/cache"
+CMD_ARGS="--model cnn --input /data/input --known-faces /data/known_faces --cache-dir /data/cache"
 
 # Parse arguments
 while [[ $# -gt 0 ]]; do

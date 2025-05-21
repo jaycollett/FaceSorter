@@ -149,7 +149,6 @@ else
   # Set volume mappings
   VOLUME_ARGS="-v \"$UNSORTED_PATH:/data/input\" \
     -v \"$KNOWN_FACES_PATH:/data/known_faces\" \
-    -v \"$SORTED_PATH:/data/output\" \
     -v \"$CACHE_PATH:/data/cache\""
 else
   # Using config file
@@ -177,14 +176,14 @@ else
   # Parse directories from the config file
   INPUT_DIR=$(jq -r '.directories.input' "$CONFIG_PATH")
   KNOWN_FACES_DIR=$(jq -r '.directories.known_faces' "$CONFIG_PATH")
-  OUTPUT_DIR=$(jq -r '.directories.output' "$CONFIG_PATH")
   CACHE_DIR=$(jq -r '.directories.cache' "$CONFIG_PATH")
   LOG_DIR=$(jq -r '.logging.log_dir' "$CONFIG_PATH")
   
   # Convert to absolute paths
   UNSORTED_PATH=$(convert_to_absolute "$INPUT_DIR")
   KNOWN_FACES_PATH=$(convert_to_absolute "$KNOWN_FACES_DIR")
-  SORTED_PATH=$(convert_to_absolute "$OUTPUT_DIR")
+  # Use a default sorted path in case it's not in the config
+  SORTED_PATH=$(convert_to_absolute "$(dirname "$INPUT_DIR")/sorted")
   CACHE_PATH=$(convert_to_absolute "$CACHE_DIR")
   LOG_PATH=$(convert_to_absolute "$LOG_DIR")
   
@@ -194,16 +193,15 @@ else
   # Add volume mappings to mount the directories
   VOLUME_ARGS="-v \"$UNSORTED_PATH:/data/input\" \
     -v \"$KNOWN_FACES_PATH:/data/known_faces\" \
-    -v \"$SORTED_PATH:/data/output\" \
     -v \"$SORTED_PATH:/data/sorted\" \
     -v \"$CACHE_PATH:/data/cache\" \
     -v \"$CONFIG_PATH:/app/config.json\" \
     -v \"$LOG_PATH:/data/logs\""
   
   # Extract and store all person paths from config.json
-  for person in $(jq -r '.behavior.priority[]' "$CONFIG_PATH" 2>/dev/null); do
-    # Check if person has a custom path configured
-    custom_path=$(jq -r ".behavior.person_paths.\"$person\"" "$CONFIG_PATH" 2>/dev/null)
+  for person in $(jq -r '.people | keys[]' "$CONFIG_PATH" 2>/dev/null); do
+    # Check if person has an output path configured
+    custom_path=$(jq -r ".people.\"$person\".output_path" "$CONFIG_PATH" 2>/dev/null)
     if [ -n "$custom_path" ] && [ "$custom_path" != "null" ]; then
       # Convert to absolute path
       PERSON_PATHS[$person]=$(convert_to_absolute "$custom_path")
@@ -342,9 +340,9 @@ if [ -f "$CONFIG_PATH" ]; then
     cat "$CONFIG_PATH"
     echo ""
     
-    # Debug: Specifically check person_paths in config.json
-    echo "Person paths from config:"
-    jq -r '.behavior.person_paths | to_entries[] | "\(.key): \(.value)"' "$CONFIG_PATH"
+    # Debug: Show person output paths from config.json
+    echo "Person output paths from config:"
+    jq -r '.people | to_entries[] | "\(.key): \(.value.output_path)"' "$CONFIG_PATH"
     echo ""
 fi
 
@@ -370,7 +368,6 @@ DOCKER_ARGS_ARRAY+=("--rm" "--gpus" "all" "--name" "$CONTAINER_NAME")
 # Add standard volume mappings
 DOCKER_ARGS_ARRAY+=("-v" "$UNSORTED_PATH:/data/input")
 DOCKER_ARGS_ARRAY+=("-v" "$KNOWN_FACES_PATH:/data/known_faces")
-DOCKER_ARGS_ARRAY+=("-v" "$SORTED_PATH:/data/output")
 DOCKER_ARGS_ARRAY+=("-v" "$SORTED_PATH:/data/sorted")
 DOCKER_ARGS_ARRAY+=("-v" "$CACHE_PATH:/data/cache")
 DOCKER_ARGS_ARRAY+=("-v" "$CONFIG_PATH:/app/config.json")
@@ -501,9 +498,9 @@ echo "Images remaining in source directory: $FILES_REMAINING"
 echo "Custom person directories:"
 TOTAL_SORTED=0
 
-for person in $(jq -r '.behavior.priority[]' "$CONFIG_PATH" 2>/dev/null); do
-    # Check if person has a custom path configured
-    custom_path=$(jq -r ".behavior.person_paths.\"$person\"" "$CONFIG_PATH" 2>/dev/null)
+for person in $(jq -r '.people | keys[]' "$CONFIG_PATH" 2>/dev/null); do
+    # Check if person has an output path configured
+    custom_path=$(jq -r ".people.\"$person\".output_path" "$CONFIG_PATH" 2>/dev/null)
     if [ -n "$custom_path" ] && [ "$custom_path" != "null" ]; then
         # Person has a custom path
         if [ -d "$custom_path" ]; then
@@ -532,15 +529,8 @@ if [ -d "$UNKNOWN_DIR" ]; then
     TOTAL_SORTED=$((TOTAL_SORTED + UNKNOWN_COUNT))
     echo "- unknown faces: $UNKNOWN_COUNT images → $UNKNOWN_DIR"
 else 
-    # Check if output directory is configured as unknown
-    OUTPUT_DIR=$(jq -r '.directories.output' "$CONFIG_PATH" 2>/dev/null)
-    if [ -d "$OUTPUT_DIR" ]; then
-        UNKNOWN_COUNT=$(find "$OUTPUT_DIR" -type f -name "*.jpg" -o -name "*.jpeg" -o -name "*.png" -o -name "*.gif" | wc -l)
-        TOTAL_SORTED=$((TOTAL_SORTED + UNKNOWN_COUNT))
-        echo "- unknown faces: $UNKNOWN_COUNT images → $OUTPUT_DIR"
-    else
-        echo "- unknown faces: 0 images (no directory found)"
-    fi
+        # Unmatched faces are now left in place, so no need to report them separately
+    echo "- unmatched faces: left in original location"
 fi
 
 echo "Total images in destination directories: $TOTAL_SORTED"
@@ -552,9 +542,9 @@ echo -e "\n${GREEN}✓ Processing complete!${NC}"
 echo -e "\n${GREEN}==== DIRECTORY SUMMARY ====${NC}"
 
 # Show stats for each person
-for person in $(jq -r '.behavior.priority[]' "$CONFIG_PATH" 2>/dev/null); do
+for person in $(jq -r '.people | keys[]' "$CONFIG_PATH" 2>/dev/null); do
     # Get person count
-    custom_path=$(jq -r ".behavior.person_paths.\"$person\"" "$CONFIG_PATH" 2>/dev/null)
+    custom_path=$(jq -r ".people.\"$person\".output_path" "$CONFIG_PATH" 2>/dev/null)
     if [ -n "$custom_path" ] && [ "$custom_path" != "null" ]; then
         # Person has a custom path
         if [ -d "$custom_path" ]; then
@@ -571,12 +561,8 @@ for person in $(jq -r '.behavior.priority[]' "$CONFIG_PATH" 2>/dev/null); do
     fi
 done
 
-# Show unknown directory
-OUTPUT_DIR=$(jq -r '.directories.output' "$CONFIG_PATH" 2>/dev/null)
-if [ -d "$OUTPUT_DIR" ]; then
-    count=$(find "$OUTPUT_DIR" -type f -name "*.jpg" -o -name "*.jpeg" -o -name "*.png" -o -name "*.gif" | wc -l)
-    echo -e "${YELLOW}unknown:${NC} $count images in $OUTPUT_DIR"
-fi
+# Unmatched faces are now left in place
+echo -e "${YELLOW}unmatched faces:${NC} left in original location"
 
 # Show input directory and remaining files
 SOURCE_COUNT=$(find "$UNSORTED_PATH" -type f -name "*.jpg" -o -name "*.jpeg" -o -name "*.png" -o -name "*.gif" | wc -l)
