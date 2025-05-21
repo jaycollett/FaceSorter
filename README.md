@@ -105,32 +105,34 @@ FaceSorter can be configured using a JSON configuration file instead of command-
 ```json
 {
   "directories": {
-    "input": "unsorted",
-    "known_faces": "known_faces",
-    "output": "sorted",
-    "cache": ".face_cache"
+    "input": "/path/to/input/images",
+    "known_faces": "/path/to/known_faces",
+    "output": "/path/to/output/directory",
+    "cache": "/path/to/cache/directory"
   },
   "recognition": {
-    "model": "hog",
+    "model": "cnn",
     "use_children_settings": true,
     "min_face_size": 20,
-    "max_image_size": 1500
+    "max_image_size": 1900
   },
   "performance": {
-    "workers": null,
-    "batch_size": null
+    "workers": 28,
+    "batch_size": 16
   },
   "behavior": {
     "priority": ["ana", "ethan", "gabe", "natalie"],
-    "move_files": false,
+    "move_files": true,
     "recursive": false,
     "person_paths": {
-      "ana": "/custom/path/for/ana",
-      "ethan": "/different/path/for/ethan"
+      "ana": "/path/to/ana/photos",
+      "ethan": "/path/to/ethan/photos",
+      "gabe": "/path/to/gabe/photos",
+      "natalie": "/path/to/natalie/photos"
     }
   },
   "logging": {
-    "log_dir": "logs",
+    "log_dir": "/path/to/logs",
     "verbosity": "info"
   }
 }
@@ -142,12 +144,15 @@ To use a custom configuration file:
 ./run_facesorter.sh --config /path/to/your/config.json
 ```
 
+All paths in the configuration file will be properly mapped to the Docker container's `/data` directory structure.
+
 ## ⚠️ Important: Do NOT Run main.py Directly
 
 **FaceSorter must be run inside the Docker container via the `run_facesorter.sh` script.**
 
 - Running `main.py` directly on your host machine will cause errors and may create unwanted log files in your root or project directory.
 - Always use the provided shell script to start the application. This ensures all paths and volumes are correctly set up.
+- The script handles paths with spaces in Docker volume mappings and ensures consistent directory structure in the container.
 
 ## Logging
 
@@ -182,25 +187,22 @@ FaceSorter writes log files to the directory specified in your configuration. Th
 ./run_facesorter.sh [options]
 ```
 
-Options:
-- `--config PATH`: Path to JSON configuration file (default: ./config.json)
-- `--rebuild`: Force rebuild of Docker image
+Main options:
+- `-c, --config PATH`: Path to JSON configuration file (default: ./config.json)
+- `-r, --rebuild`: Force rebuild of Docker image
+- `-h, --help`: Show help message
 
-Command-line options (these will override config file settings):
-- `--input DIR`: Directory containing images to sort
-- `--known-faces DIR`: Directory containing known face examples
-- `--output DIR`: Base output directory for sorted images
-- `--cache-dir DIR`: Directory to store face encoding cache
-- `--model TYPE`: Face detection model to use ('hog' or 'cnn')
-- `--move`: Move files instead of copying them
-- `--workers N`: Number of worker threads for parallel processing
-- `--batch-size N`: Number of images to process in a batch
-- `--min-face-size N`: Minimum face size to consider in pixels
-- `--max-image-size N`: Maximum image dimension for processing
-- `--children`: Use settings optimized for children
-- `--log-level LEVEL`: Logging level (debug, info, warning, error, critical)
-- `--priority P1 P2...`: Priority list of person names
-- `--recursive`: Recursively process subdirectories
+Legacy command-line options (these will override config file settings):
+- `-b, --batch-size N`: Set batch size
+- `-w, --workers N`: Set number of worker threads
+- `-u, --unsorted PATH`: Set unsorted images directory
+- `-k, --known-faces PATH`: Set known faces directory
+- `-s, --sorted PATH`: Set sorted images directory
+- `-C, --cache PATH`: Set cache directory
+- `-p, --priority P1...`: Set priority list
+- `-m, --move`: Move files instead of copying them
+
+Using a configuration file is the recommended approach as it provides more options and better path handling, especially for paths with spaces.
 
 ## Configuration Options
 
@@ -295,11 +297,7 @@ Or use the command-line flag:
 
 ### Testing GPU Support
 
-Check if your system supports GPU acceleration:
-
-```bash
-./run_facesorter.sh --rebuild --test
-```
+The script automatically tests GPU support when building or running the container. It will install the NVIDIA Container Toolkit if it's not already installed and verify CUDA support inside the container.
 
 ### Performance Tips
 
